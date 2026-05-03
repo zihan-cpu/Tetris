@@ -267,20 +267,21 @@
   <div class="logo">TETRIS</div>
   <div class="tagline">BATTLE ARENA</div>
   <div class="coin-display">💰 <span id="menu-coins">0</span> Coins</div>
-  <button class="menu-btn primary" onclick="showScreen('game'); startGame('solo')">🎮 单人模式</button>
-  <button class="menu-btn primary" onclick="showScreen('game'); startGame('versus')">⚔️ 双人对战</button>
-  <button class="menu-btn" onclick="showScreen('shop')">🛒 装备商店</button>
-  <button class="menu-btn" onclick="resetSave()" style="font-size:0.8em;opacity:0.7;">🔄 重置存档</button>
+  <button class="menu-btn primary" id="btn-solo">🎮 单人模式</button>
+  <button class="menu-btn primary" id="btn-versus">⚔️ 双人对战</button>
+  <button class="menu-btn" id="btn-shop">🛒 装备商店</button>
+  <button class="menu-btn" id="btn-reset" style="font-size:0.8em;opacity:0.7;">🔄 重置存档</button>
+  <div id="err-display" style="margin-top:20px;color:#ff4488;font-size:0.7em;max-width:80%;text-align:center;word-break:break-all;"></div>
 </div>
 
 <!-- ===== GAME ===== -->
 <div class="screen" id="game">
   <div class="topbar">
-    <button class="icon-btn" onclick="showScreen('menu'); endGame();">← 返回</button>
+    <button class="icon-btn" id="btn-back-menu">← 返回</button>
     <h2 id="game-title">SOLO</h2>
     <div>
-      <button class="icon-btn" id="btn-pause" onclick="togglePause()">⏸</button>
-      <button class="icon-btn" id="btn-music" onclick="toggleMusic()">🔊</button>
+      <button class="icon-btn" id="btn-pause">⏸</button>
+      <button class="icon-btn" id="btn-music">🔊</button>
     </div>
   </div>
 
@@ -337,7 +338,7 @@
 <!-- ===== SHOP ===== -->
 <div class="screen" id="shop">
   <div class="shop-header">
-    <button class="icon-btn" onclick="showScreen('menu')">← 返回</button>
+    <button class="icon-btn" id="btn-back-menu2">← 返回</button>
     <div class="shop-title">🛒 SHOP</div>
     <div class="coin-display" style="margin:0;font-size:1em;">💰 <span id="shop-coins">0</span></div>
   </div>
@@ -1002,6 +1003,49 @@ function resetSave() {
 
 // Init
 document.getElementById("menu-coins").textContent = save.coins;
+
+// Global error handler -> visible on iPad
+window.addEventListener("error", e => {
+  const el = document.getElementById("err-display");
+  if (el) el.textContent = "ERR: " + (e.message || e.error) + " @ " + (e.filename||"") + ":" + (e.lineno||"");
+});
+window.addEventListener("unhandledrejection", e => {
+  const el = document.getElementById("err-display");
+  if (el) el.textContent = "PROMISE ERR: " + (e.reason && e.reason.message || e.reason);
+});
+
+// Bind menu buttons with both click and touchend for iOS
+function bindTap(id, fn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let touched = false;
+  el.addEventListener("touchend", e => {
+    e.preventDefault();
+    touched = true;
+    try { fn(); } catch(err) {
+      const ed = document.getElementById("err-display");
+      if (ed) ed.textContent = "TAP ERR: " + err.message;
+    }
+    setTimeout(() => touched = false, 500);
+  });
+  el.addEventListener("click", e => {
+    if (touched) return;
+    try { fn(); } catch(err) {
+      const ed = document.getElementById("err-display");
+      if (ed) ed.textContent = "CLICK ERR: " + err.message;
+    }
+  });
+}
+
+bindTap("btn-solo", () => { showScreen('game'); startGame('solo'); });
+bindTap("btn-versus", () => { showScreen('game'); startGame('versus'); });
+bindTap("btn-shop", () => showScreen('shop'));
+bindTap("btn-reset", resetSave);
+bindTap("btn-back-menu", () => { showScreen('menu'); endGame(); });
+bindTap("btn-back-menu2", () => showScreen('menu'));
+bindTap("btn-pause", togglePause);
+bindTap("btn-music", toggleMusic);
+
 window.addEventListener("resize", () => {
   if (p1) p1.resize();
   if (p2) p2.resize();
