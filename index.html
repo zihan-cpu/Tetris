@@ -544,6 +544,67 @@ document.addEventListener("keydown", e => {
   if (e.key === "m" || e.key === "M") toggleMusic();
 });
 
+// =========== SOUND EFFECTS ===========
+function sfx(freq, dur=0.1, type="square", vol=0.08) {
+  if (!audioCtx || !musicEnabled) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type; osc.frequency.value = freq;
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  const t = audioCtx.currentTime;
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  osc.start(t); osc.stop(t + dur);
+}
+
+// Hook sfx into game actions by wrapping originals
+const _move = move;
+move = function(dx) { const before = current && current.x; _move(dx); if (current && current.x !== before) sfx(330, 0.04, "square", 0.05); };
+
+const _rotate = rotateCurrent;
+rotateCurrent = function() { _rotate(); sfx(550, 0.05, "square", 0.06); };
+
+const _hardDrop = hardDrop;
+hardDrop = function() {
+  _hardDrop();
+  // descending sweep
+  if (!audioCtx || !musicEnabled) return;
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(400, t);
+  osc.frequency.exponentialRampToValueAtTime(60, t + 0.15);
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(t); osc.stop(t + 0.18);
+};
+
+const _clearLines = clearLines;
+clearLines = function() {
+  const before = lines;
+  _clearLines();
+  if (lines > before) {
+    const cleared = lines - before;
+    if (cleared === 4) {
+      // Tetris! special chord
+      [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => sfx(f, 0.15, "square", 0.09), i * 60));
+    } else {
+      sfx(660, 0.1, "square", 0.07);
+      setTimeout(() => sfx(880, 0.12, "square", 0.07), 70);
+    }
+  }
+};
+
+const _endGame = endGame;
+endGame = function() {
+  _endGame();
+  stopMusic();
+  if (!audioCtx) return;
+  [600, 500, 400, 300, 200].forEach((f, i) => setTimeout(() => sfx(f, 0.2, "sawtooth", 0.1), i * 120));
+};
+
 // Initial state
 grid = newGrid();
 score = 0; level = 1; lines = 0;
