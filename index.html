@@ -140,6 +140,7 @@
   </div>
   <div class="sidebar">
     <div class="panel"><div class="panel-label">SCORE</div><div class="panel-value" id="score">0</div></div>
+    <div class="panel"><div class="panel-label">💰 COINS</div><div class="panel-value" id="coins" style="color:#ffe259;text-shadow:0 0 10px #ffa751;">0</div></div>
     <div class="panel"><div class="panel-label">LEVEL</div><div class="panel-value" id="level">1</div></div>
     <div class="panel"><div class="panel-label">LINES</div><div class="panel-value" id="lines">0</div></div>
     <div class="panel"><div class="panel-label">NEXT</div><canvas id="next" width="80" height="80"></canvas></div>
@@ -156,7 +157,25 @@
 </div>
 
 <div class="hint">键盘:← → ↓ 移动 · ↑ 旋转 · 空格 硬降 · P 暂停 · M 静音</div>
-<button id="btn-music" style="margin-top:10px;padding:8px 16px;background:rgba(0,255,255,0.15);border:1px solid #00ffff;color:#fff;border-radius:8px;font-family:inherit;cursor:pointer;font-size:0.9em;">🔊 Music: ON</button>
+<div style="display:flex;gap:8px;margin-top:10px;">
+  <button id="btn-music" style="padding:8px 16px;background:rgba(0,255,255,0.15);border:1px solid #00ffff;color:#fff;border-radius:8px;font-family:inherit;cursor:pointer;font-size:0.9em;">🔊 Music: ON</button>
+  <button id="btn-shop" style="padding:8px 16px;background:rgba(255,226,89,0.15);border:1px solid #ffe259;color:#fff;border-radius:8px;font-family:inherit;cursor:pointer;font-size:0.9em;">🛒 商店</button>
+</div>
+
+<div id="items-bar" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;justify-content:center;min-height:40px;"></div>
+
+<!-- SHOP MODAL -->
+<div id="shop-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:100;overflow-y:auto;padding:20px;">
+  <div style="max-width:600px;margin:0 auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <button id="btn-shop-close" style="padding:8px 14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:8px;font-family:inherit;cursor:pointer;">← 返回</button>
+      <h2 style="background:linear-gradient(90deg,#ffe259,#ffa751);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;font-size:1.5em;letter-spacing:3px;">🛒 SHOP</h2>
+      <div style="font-weight:800;color:#ffe259;font-size:1.1em;">💰 <span id="shop-total">0</span></div>
+    </div>
+    <div style="opacity:0.7;font-size:0.85em;margin-bottom:12px;text-align:center;">永久装备买一次永远拥有 · 消耗品每局开始自动给</div>
+    <div id="shop-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;"></div>
+  </div>
+</div>
 
 <script>
 const COLS = 10, ROWS = 20;
@@ -250,7 +269,13 @@ function clearLines() {
     const points = [0, 100, 300, 500, 800][cleared] * level;
     score += points;
     lines += cleared;
-    level = Math.floor(lines / 10) + 1;
+    // Coins: 10/line, 50 bonus for tetris
+    earnCoins(cleared * 10 + (cleared === 4 ? 50 : 0));
+    const newLevel = Math.floor(lines / 10) + 1;
+    if (newLevel > level) {
+      level = newLevel;
+      earnCoins(30); // level up bonus
+    }
     dropInterval = Math.max(80, 800 - (level - 1) * 60);
     updateUI();
   }
@@ -260,7 +285,16 @@ function spawn() {
   current = nextPiece || randomPiece();
   nextPiece = randomPiece();
   drawNext();
-  if (collides(current)) endGame();
+  if (collides(current)) {
+    if (owned.shield && !shieldUsed) {
+      shieldUsed = true;
+      // Clear top 4 rows
+      for (let r = 0; r < 4; r++) grid[r] = Array(COLS).fill(null);
+      sfx(1200, 0.3, "square", 0.1);
+      return;
+    }
+    endGame();
+  }
 }
 
 function tick() {
@@ -358,12 +392,31 @@ function updateUI() {
   document.getElementById("score").textContent = score;
   document.getElementById("level").textContent = level;
   document.getElementById("lines").textContent = lines;
+  document.getElementById("coins").textContent = totalCoins + roundCoins;
+}
+
+// =========== COIN SYSTEM ===========
+let totalCoins = parseInt(localStorage.getItem("tetris_coins") || "0");
+let roundCoins = 0;
+let owned = JSON.parse(localStorage.getItem("tetris_owned") || "{}");
+let consumables = {}; // per-round consumable counts
+function saveData() {
+  localStorage.setItem("tetris_coins", totalCoins);
+  localStorage.setItem("tetris_owned", JSON.stringify(owned));
+}
+function earnCoins(n) {
+  if (owned.doubleCoin) n *= 2;
+  roundCoins += n;
+  updateUI();
 }
 
 function endGame() {
   gameOver = true;
+  // Save earned coins to total
+  totalCoins += roundCoins;
+  saveData();
   document.getElementById("overlay-title").textContent = "GAME OVER";
-  document.getElementById("overlay-text").textContent = `Score: ${score} · Lines: ${lines}`;
+  document.getElementById("overlay-text").innerHTML = `Score: ${score} · Lines: ${lines}<br>💰 +${roundCoins} (总:${totalCoins})`;
   document.getElementById("overlay-btn").textContent = "PLAY AGAIN";
   document.getElementById("overlay").classList.remove("hidden");
 }
@@ -388,11 +441,19 @@ function start() {
   gameOver = false; paused = false;
   dropInterval = 800; accumulator = 0; lastTime = 0;
   nextPiece = null;
+  roundCoins = 0;
+  // Refill consumables from owned items
+  consumables = {};
+  if (owned.bomb) consumables.bomb = 3;
+  if (owned.swap) consumables.swap = 3;
+  shieldUsed = false;
   spawn();
   updateUI();
+  renderItems();
   draw();
   document.getElementById("overlay").classList.add("hidden");
 }
+let shieldUsed = false;
 
 // Keyboard
 document.addEventListener("keydown", e => {
@@ -605,11 +666,141 @@ endGame = function() {
   [600, 500, 400, 300, 200].forEach((f, i) => setTimeout(() => sfx(f, 0.2, "sawtooth", 0.1), i * 120));
 };
 
+// =========== SHOP & ITEMS ===========
+const ITEMS = {
+  bomb: { icon: "💣", name: "炸弹", desc: "消除最底下一行 · 每局给 3 个", price: 150, type: "consumable" },
+  swap: { icon: "🔄", name: "重抽", desc: "换一个新方块 · 每局给 3 个", price: 100, type: "consumable" },
+  shield: { icon: "🛡️", name: "复活甲", desc: "Game Over 时复活一次", price: 500, type: "permanent" },
+  doubleCoin: { icon: "⚡", name: "双倍金币", desc: "永久 2× 金币收入", price: 800, type: "permanent" },
+  ghost: { icon: "🎯", name: "精准定位", desc: "幽灵方块更明亮", price: 100, type: "permanent" },
+};
+
+function renderShop() {
+  document.getElementById("shop-total").textContent = totalCoins;
+  const grid = document.getElementById("shop-grid");
+  grid.innerHTML = "";
+  for (const k in ITEMS) {
+    const it = ITEMS[k];
+    const isOwned = owned[k] && it.type === "permanent";
+    const canBuy = totalCoins >= it.price && !isOwned;
+    const div = document.createElement("div");
+    div.style.cssText = `background:rgba(255,255,255,0.06);border:2px solid ${isOwned ? "#00ff88" : (canBuy ? "rgba(0,255,255,0.3)" : "rgba(255,255,255,0.1)")};border-radius:12px;padding:12px;cursor:${canBuy ? "pointer" : "default"};opacity:${canBuy || isOwned ? 1 : 0.4};display:flex;flex-direction:column;gap:4px;`;
+    div.innerHTML = `
+      <div style="font-size:2em;text-align:center;">${it.icon}</div>
+      <div style="font-weight:800;text-align:center;">${it.name}</div>
+      <div style="font-size:0.75em;opacity:0.8;text-align:center;line-height:1.4;min-height:32px;">${it.desc}</div>
+      <div style="text-align:center;font-weight:800;color:#ffe259;font-size:0.9em;padding:4px;background:rgba(0,0,0,0.3);border-radius:6px;">
+        ${isOwned ? "✅ 已拥有" : "💰 " + it.price}
+      </div>`;
+    if (canBuy) {
+      const buy = (e) => { e && e.preventDefault(); buyItem(k); };
+      div.addEventListener("click", buy);
+      div.addEventListener("touchend", buy);
+    }
+    grid.appendChild(div);
+  }
+}
+
+function buyItem(k) {
+  const it = ITEMS[k];
+  if (totalCoins < it.price) return;
+  if (it.type === "permanent" && owned[k]) return;
+  totalCoins -= it.price;
+  owned[k] = true;
+  saveData();
+  sfx(880, 0.15, "square", 0.08);
+  setTimeout(() => sfx(1200, 0.15, "square", 0.08), 80);
+  renderShop();
+  updateUI();
+}
+
+const shopModal = document.getElementById("shop-modal");
+function openShop(e) { e && e.preventDefault(); renderShop(); shopModal.style.display = "block"; }
+function closeShop(e) { e && e.preventDefault(); shopModal.style.display = "none"; }
+const shopBtn = document.getElementById("btn-shop");
+shopBtn.addEventListener("click", openShop);
+shopBtn.addEventListener("touchend", openShop);
+const shopClose = document.getElementById("btn-shop-close");
+shopClose.addEventListener("click", closeShop);
+shopClose.addEventListener("touchend", closeShop);
+
+// Items bar (during gameplay)
+function renderItems() {
+  const bar = document.getElementById("items-bar");
+  bar.innerHTML = "";
+  for (const k in consumables) {
+    if (consumables[k] <= 0) continue;
+    const it = ITEMS[k];
+    const slot = document.createElement("button");
+    slot.style.cssText = "width:48px;height:48px;background:rgba(255,255,255,0.08);border:2px solid #ffe259;border-radius:10px;color:#fff;font-size:1.4em;cursor:pointer;position:relative;font-family:inherit;";
+    slot.innerHTML = `${it.icon}<span style="position:absolute;top:-4px;right:-4px;background:#ff00ff;font-size:0.55em;font-weight:800;border-radius:999px;padding:1px 5px;">${consumables[k]}</span>`;
+    const use = (e) => { e && e.preventDefault(); useItem(k); };
+    slot.addEventListener("click", use);
+    slot.addEventListener("touchend", use);
+    bar.appendChild(slot);
+  }
+}
+
+function useItem(k) {
+  if (gameOver || paused) return;
+  if (!consumables[k] || consumables[k] <= 0) return;
+  if (k === "bomb") {
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (grid[r].some(c => c !== null)) {
+        grid.splice(r, 1);
+        grid.unshift(Array(COLS).fill(null));
+        break;
+      }
+    }
+    sfx(80, 0.4, "sawtooth", 0.12);
+  } else if (k === "swap") {
+    current = randomPiece();
+    sfx(440, 0.1, "square", 0.06);
+  }
+  consumables[k]--;
+  renderItems();
+  draw();
+}
+
+// Update draw to use bright ghost if owned
+const _draw = draw;
+draw = function() {
+  ctx.fillStyle = "rgba(10,4,32,0.95)";
+  ctx.fillRect(0, 0, board.width, board.height);
+  ctx.strokeStyle = "rgba(255,255,255,0.04)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= COLS; i++) {
+    ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, ROWS * CELL); ctx.stroke();
+  }
+  for (let i = 0; i <= ROWS; i++) {
+    ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(COLS * CELL, i * CELL); ctx.stroke();
+  }
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (grid[r][c]) drawCell(ctx, c, r, COLORS[grid[r][c]]);
+  if (current && !gameOver) {
+    let gd = 0;
+    while (!collides(current, 0, gd + 1)) gd++;
+    const ghostAlpha = owned.ghost ? "70" : "30";
+    current.shape.forEach((row, r) => row.forEach((v, c) => {
+      if (v) {
+        const x = current.x + c, y = current.y + r + gd;
+        ctx.fillStyle = COLORS[current.type] + ghostAlpha;
+        ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
+      }
+    }));
+    current.shape.forEach((row, r) => row.forEach((v, c) => {
+      if (v) drawCell(ctx, current.x + c, current.y + r, COLORS[current.type]);
+    }));
+  }
+};
+
 // Initial state
 grid = newGrid();
 score = 0; level = 1; lines = 0;
 gameOver = true;
 draw();
+updateUI();
 </script>
 </body>
 </html>
