@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>TETRIS · Battle Arena</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(255,0,128,0.25) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 100%, rgba(0,255,255,0.25) 0%, transparent 50%),
+      radial-gradient(ellipse at center, #1a0b3d 0%, #0a0420 60%, #000 100%);
+    color: #fff;
+    height: 100vh;
+    padding: 6px;
+    overflow: hidden;
+  }
+  .screen { display: none; width: 100%; height: 100%; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* ===== MENU SCREEN ===== */
+  #menu { align-items: center; justify-content: center; gap: 20px; padding: 20px; }
+  .logo {
+    font-size: 3em; font-weight: 900; letter-spacing: 8px;
+    background: linear-gradient(90deg, #00ffff, #ff00ff, #ffff00);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 40px rgba(255,0,255,0.6);
+    text-align: center;
+  }
+  .tagline { opacity: 0.7; letter-spacing: 4px; margin-bottom: 20px; }
+  .menu-btn {
+    width: 280px; padding: 16px; font-size: 1em; font-weight: 700;
+    background: rgba(255,255,255,0.08);
+    border: 2px solid rgba(0,255,255,0.5); color: #fff;
+    border-radius: 12px; cursor: pointer;
+    font-family: inherit; letter-spacing: 2px;
+    transition: all 0.2s;
+  }
+  .menu-btn:hover, .menu-btn:active {
+    background: rgba(0,255,255,0.2);
+    box-shadow: 0 0 20px #00ffff;
+    transform: translateY(-2px);
+  }
+  .menu-btn.primary {
+    background: linear-gradient(90deg, #00ffff, #ff00ff);
+    color: #000;
+    border-color: transparent;
+  }
+  .coin-display {
+    font-size: 1.3em; font-weight: 800; color: #ffe259;
+    text-shadow: 0 0 15px #ffa751;
+    margin: 10px 0;
+  }
+
+  /* ===== GAME SCREEN ===== */
+  #game { padding: 4px; }
+  .topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 12px; gap: 8px;
+  }
+  .topbar h2 {
+    font-size: 1em; letter-spacing: 4px;
+    background: linear-gradient(90deg, #00ffff, #ff00ff);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .icon-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(0,255,255,0.4);
+    color: #fff;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.85em;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .arena {
+    flex: 1;
+    display: flex; gap: 8px;
+    justify-content: center; align-items: stretch;
+    min-height: 0; padding: 4px;
+  }
+  .player-side {
+    display: flex; flex-direction: column;
+    gap: 6px; align-items: center;
+    flex: 1; max-width: 50%;
+  }
+  .player-name {
+    font-weight: 800; letter-spacing: 3px; font-size: 0.9em;
+    padding: 4px 12px; border-radius: 8px;
+    background: rgba(0,255,255,0.1);
+    border: 1px solid #00ffff;
+  }
+  .player-side.p2 .player-name {
+    background: rgba(255,0,255,0.1); border-color: #ff00ff;
+  }
+  .stats-row {
+    display: flex; gap: 4px; width: 100%; max-width: 320px;
+  }
+  .stat {
+    flex: 1; padding: 4px 6px; text-align: center;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(0,255,255,0.25);
+    border-radius: 6px;
+    font-size: 0.7em;
+  }
+  .stat-label { opacity: 0.6; font-size: 0.85em; }
+  .stat-value { font-weight: 800; font-size: 1.3em; color: #00ffff; }
+  .player-side.p2 .stat-value { color: #ff66cc; }
+  .stat-value.coin { color: #ffe259; }
+  .board-wrap {
+    position: relative;
+    border: 2px solid #00ffff;
+    border-radius: 8px;
+    box-shadow: 0 0 30px rgba(0,255,255,0.4), inset 0 0 20px rgba(0,255,255,0.05);
+    background: rgba(0,0,0,0.6);
+  }
+  .player-side.p2 .board-wrap {
+    border-color: #ff00ff;
+    box-shadow: 0 0 30px rgba(255,0,255,0.4), inset 0 0 20px rgba(255,0,255,0.05);
+  }
+  canvas.board { display: block; border-radius: 6px; }
+  .next-mini {
+    display: flex; gap: 4px; justify-content: center;
+  }
+  .next-mini canvas {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 4px;
+  }
+  .items-bar {
+    display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;
+    min-height: 36px; padding: 2px;
+  }
+  .item-slot {
+    width: 32px; height: 32px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,226,89,0.4);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1em; cursor: pointer;
+    position: relative;
+  }
+  .item-slot:active { background: rgba(255,226,89,0.3); transform: scale(0.95); }
+  .item-slot .count {
+    position: absolute; top: -4px; right: -4px;
+    background: #ff00ff; color: #fff;
+    font-size: 0.6em; font-weight: 800;
+    border-radius: 999px; padding: 1px 4px;
+    min-width: 14px;
+  }
+  .item-slot.locked { opacity: 0.3; }
+  .vs-divider {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5em; font-weight: 900;
+    background: linear-gradient(180deg, #00ffff, #ff00ff);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    width: 30px;
+  }
+  .controls-row {
+    display: flex; gap: 12px; padding: 8px 4px 4px;
+    justify-content: space-between;
+  }
+  .ctrl-group {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    flex: 1;
+  }
+  .ctrl-group.p1 { max-width: 50%; }
+  .ctrl-group.p2 { max-width: 50%; }
+  .ctrl-btn {
+    background: rgba(255,255,255,0.08);
+    border: 2px solid rgba(0,255,255,0.4);
+    border-radius: 10px;
+    color: #fff;
+    font-size: 1.2em;
+    font-weight: 700;
+    cursor: pointer;
+    height: 44px;
+    display:flex;align-items:center;justify-content:center;
+    font-family: inherit;
+  }
+  .ctrl-btn:active { background: rgba(0,255,255,0.3); transform: scale(0.95); }
+  .ctrl-group.p2 .ctrl-btn { border-color: rgba(255,0,255,0.4); }
+  .ctrl-group.p2 .ctrl-btn:active { background: rgba(255,0,255,0.3); }
+  .ctrl-btn.special { border-color: #ffe259; }
+  .ctrl-btn.special:active { background: rgba(255,226,89,0.3); box-shadow: 0 0 10px #ffe259; }
+
+  .overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    border-radius: 6px; z-index: 10; padding: 16px; text-align: center;
+  }
+  .overlay.hidden { display: none; }
+  .overlay h3 {
+    font-size: 1.4em; margin-bottom: 8px;
+    background: linear-gradient(90deg, #00ffff, #ff00ff);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  /* ===== SHOP SCREEN ===== */
+  #shop { padding: 16px; overflow-y: auto; align-items: center; }
+  .shop-header {
+    display: flex; justify-content: space-between; align-items: center;
+    width: 100%; max-width: 600px; margin-bottom: 16px;
+  }
+  .shop-title {
+    font-size: 1.5em; font-weight: 900; letter-spacing: 4px;
+    background: linear-gradient(90deg, #ffe259, #ffa751);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .shop-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    width: 100%;
+    max-width: 600px;
+  }
+  .shop-item {
+    background: rgba(255,255,255,0.06);
+    border: 2px solid rgba(0,255,255,0.3);
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .shop-item:hover, .shop-item:active {
+    border-color: #ffe259;
+    background: rgba(255,226,89,0.1);
+    transform: translateY(-2px);
+  }
+  .shop-item.owned { border-color: #00ff88; background: rgba(0,255,136,0.1); }
+  .shop-item.cant-afford { opacity: 0.4; cursor: not-allowed; }
+  .item-icon { font-size: 2em; text-align: center; }
+  .item-name { font-weight: 800; text-align: center; font-size: 0.95em; }
+  .item-desc { font-size: 0.75em; opacity: 0.8; text-align: center; line-height: 1.4; min-height: 32px; }
+  .item-price {
+    text-align: center; font-weight: 800;
+    color: #ffe259; font-size: 0.9em;
+    padding: 4px; background: rgba(0,0,0,0.3); border-radius: 6px;
+  }
+  .item-stock {
+    text-align: center; font-size: 0.7em; opacity: 0.7;
+  }
+
+  @media (max-width: 600px) {
+    .logo { font-size: 2em; letter-spacing: 4px; }
+    .player-name { font-size: 0.7em; padding: 2px 8px; }
+    .stat-value { font-size: 1em; }
+    .shop-grid { grid-template-columns: repeat(2, 1fr); }
+    .ctrl-btn { height: 40px; font-size: 1em; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== MENU ===== -->
+<div class="screen active" id="menu">
+  <div class="logo">TETRIS</div>
+  <div class="tagline">BATTLE ARENA</div>
+  <div class="coin-display">💰 <span id="menu-coins">0</span> Coins</div>
+  <button class="menu-btn primary" onclick="showScreen('game'); startGame('solo')">🎮 单人模式</button>
+  <button class="menu-btn primary" onclick="showScreen('game'); startGame('versus')">⚔️ 双人对战</button>
+  <button class="menu-btn" onclick="showScreen('shop')">🛒 装备商店</button>
+  <button class="menu-btn" onclick="resetSave()" style="font-size:0.8em;opacity:0.7;">🔄 重置存档</button>
+</div>
+
+<!-- ===== GAME ===== -->
+<div class="screen" id="game">
+  <div class="topbar">
+    <button class="icon-btn" onclick="showScreen('menu'); endGame();">← 返回</button>
+    <h2 id="game-title">SOLO</h2>
+    <div>
+      <button class="icon-btn" id="btn-pause" onclick="togglePause()">⏸</button>
+      <button class="icon-btn" id="btn-music" onclick="toggleMusic()">🔊</button>
+    </div>
+  </div>
+
+  <div class="arena">
+    <div class="player-side p1">
+      <div class="player-name">P1</div>
+      <div class="stats-row">
+        <div class="stat"><div class="stat-label">SCORE</div><div class="stat-value" id="p1-score">0</div></div>
+        <div class="stat"><div class="stat-label">COINS</div><div class="stat-value coin" id="p1-coins">0</div></div>
+        <div class="stat"><div class="stat-label">LV</div><div class="stat-value" id="p1-level">1</div></div>
+      </div>
+      <div class="board-wrap">
+        <canvas class="board" id="board1"></canvas>
+        <div class="overlay hidden" id="overlay1"><h3 id="overlay1-title"></h3><div id="overlay1-text"></div></div>
+      </div>
+      <div class="next-mini"><canvas id="next1" width="60" height="60"></canvas></div>
+      <div class="items-bar" id="items1"></div>
+    </div>
+
+    <div class="vs-divider" id="vs-divider" style="display:none;">VS</div>
+
+    <div class="player-side p2" id="p2-side" style="display:none;">
+      <div class="player-name">P2</div>
+      <div class="stats-row">
+        <div class="stat"><div class="stat-label">SCORE</div><div class="stat-value" id="p2-score">0</div></div>
+        <div class="stat"><div class="stat-label">COINS</div><div class="stat-value coin" id="p2-coins">0</div></div>
+        <div class="stat"><div class="stat-label">LV</div><div class="stat-value" id="p2-level">1</div></div>
+      </div>
+      <div class="board-wrap">
+        <canvas class="board" id="board2"></canvas>
+        <div class="overlay hidden" id="overlay2"><h3 id="overlay2-title"></h3><div id="overlay2-text"></div></div>
+      </div>
+      <div class="next-mini"><canvas id="next2" width="60" height="60"></canvas></div>
+      <div class="items-bar" id="items2"></div>
+    </div>
+  </div>
+
+  <div class="controls-row">
+    <div class="ctrl-group p1">
+      <button class="ctrl-btn" data-p="1" data-act="left">◀</button>
+      <button class="ctrl-btn special" data-p="1" data-act="rotate">↻</button>
+      <button class="ctrl-btn special" data-p="1" data-act="drop">⬇⬇</button>
+      <button class="ctrl-btn" data-p="1" data-act="right">▶</button>
+    </div>
+    <div class="ctrl-group p2" id="p2-controls" style="display:none;">
+      <button class="ctrl-btn" data-p="2" data-act="left">◀</button>
+      <button class="ctrl-btn special" data-p="2" data-act="rotate">↻</button>
+      <button class="ctrl-btn special" data-p="2" data-act="drop">⬇⬇</button>
+      <button class="ctrl-btn" data-p="2" data-act="right">▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SHOP ===== -->
+<div class="screen" id="shop">
+  <div class="shop-header">
+    <button class="icon-btn" onclick="showScreen('menu')">← 返回</button>
+    <div class="shop-title">🛒 SHOP</div>
+    <div class="coin-display" style="margin:0;font-size:1em;">💰 <span id="shop-coins">0</span></div>
+  </div>
+  <div style="opacity:0.7;font-size:0.85em;margin-bottom:12px;text-align:center;">
+    永久装备点击购买 · 消耗装备会在每局开始时获得
+  </div>
+  <div class="shop-grid" id="shop-grid"></div>
+</div>
+
+<script>
+// ============== GAME CONSTANTS ==============
+const COLS = 10, ROWS = 20;
+const COLORS = {
+  I: "#00ffff", O: "#ffff00", T: "#ff00ff",
+  S: "#00ff88", Z: "#ff0044", L: "#ff8800", J: "#0088ff",
+  G: "#888"  // garbage
+};
+const SHAPES = {
+  I: [[1,1,1,1]], O: [[1,1],[1,1]],
+  T: [[0,1,0],[1,1,1]], S: [[0,1,1],[1,1,0]],
+  Z: [[1,1,0],[0,1,1]], L: [[0,0,1],[1,1,1]], J: [[1,0,0],[1,1,1]],
+};
+
+// ============== ITEM DEFINITIONS ==============
+const ITEMS = {
+  // Permanent upgrades (passive, owned once)
+  vision: { icon: "🔮", name: "透视眼", desc: "看到下 3 个方块", price: 200, type: "permanent" },
+  ghost: { icon: "🎯", name: "精准定位", desc: "幽灵方块更明亮", price: 100, type: "permanent" },
+  doubleCoin: { icon: "⚡", name: "双倍金币", desc: "永久 2× 金币收入", price: 800, type: "permanent" },
+  shield: { icon: "🛡️", name: "复活甲", desc: "Game Over 时复活一次", price: 500, type: "permanent" },
+  // Consumables (use during game)
+  bomb: { icon: "💣", name: "炸弹", desc: "消除最底下一行", price: 150, type: "consumable", stock: 3 },
+  freeze: { icon: "❄️", name: "冰冻(对战)", desc: "冻结对手 4 秒", price: 200, type: "consumable", stock: 2 },
+  swap: { icon: "🔄", name: "重抽方块", desc: "换一个新方块", price: 100, type: "consumable", stock: 3 },
+  attack: { icon: "💥", name: "攻击(对战)", desc: "对手底加 2 行垃圾", price: 250, type: "consumable", stock: 2 },
+};
+
+// ============== SAVE STATE ==============
+let save = JSON.parse(localStorage.getItem("tetris_save") || "{}");
+if (!save.coins) save.coins = 0;
+if (!save.owned) save.owned = {}; // { vision: true, ... }
+if (!save.high) save.high = 0;
+
+function persist() { localStorage.setItem("tetris_save", JSON.stringify(save)); }
+
+// ============== AUDIO ==============
+let audioCtx = null, musicEnabled = true, musicTimers = [], musicPlaying = false;
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+}
+const F = {};
+(function() {
+  const names = ["C","CS","D","DS","E","F","FS","G","GS","A","AS","B"];
+  for (let oct = 2; oct <= 6; oct++)
+    for (let i = 0; i < 12; i++) {
+      const midi = 12 + oct * 12 + i;
+      F[names[i] + oct] = 440 * Math.pow(2, (midi - 69) / 12);
+    }
+})();
+const LEAD = [
+  ["A4",2],["E5",2],["A5",2],["E5",2],["G5",2],["E5",2],["C5",2],["A4",2],
+  ["A4",2],["E5",2],["A5",2],["E5",2],["B5",2],["A5",2],["G5",2],["E5",2],
+  ["F5",2],["E5",2],["D5",2],["E5",2],["F5",2],["G5",2],["A5",4],
+  ["G5",2],["F5",2],["E5",2],["F5",2],["G5",2],["E5",2],["C5",4],
+  ["A4",2],["C5",2],["E5",2],["A5",2],["G5",4],["E5",2],["C5",2],
+  ["D5",2],["E5",2],["F5",2],["E5",2],["D5",2],["C5",2],["B4",4],
+];
+const BASS_LINE = [["A2",4],["A2",4],["G2",4],["F2",4],["E2",4],["F2",4],["G2",4],["A2",4]];
+function playTone(freq, t, dur, type, vol) {
+  const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+  osc.type = type; osc.frequency.value = freq;
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(vol, t + 0.005);
+  gain.gain.setValueAtTime(vol, t + dur - 0.04);
+  gain.gain.linearRampToValueAtTime(0, t + dur);
+  osc.start(t); osc.stop(t + dur + 0.02);
+}
+function playKick(t) {
+  const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+  osc.type = "sine"; osc.frequency.setValueAtTime(120, t);
+  osc.frequency.exponentialRampToValueAtTime(40, t + 0.1);
+  gain.gain.setValueAtTime(0.15, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(t); osc.stop(t + 0.18);
+}
+function playSnare(t) {
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const noise = audioCtx.createBufferSource(); noise.buffer = buf;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = "highpass"; filter.frequency.value = 1500;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.08, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+  noise.start(t); noise.stop(t + 0.1);
+}
+function startMusic() {
+  if (!musicEnabled || !audioCtx || musicPlaying) return;
+  musicPlaying = true; scheduleLoop();
+}
+function scheduleLoop() {
+  if (!musicEnabled || !audioCtx) { musicPlaying = false; return; }
+  const sx = 0.11; const start = audioCtx.currentTime + 0.05; let t = start;
+  for (const [n, d] of LEAD) {
+    const dur = d * sx;
+    if (F[n]) playTone(F[n], t, dur * 0.92, "square", 0.06);
+    t += dur;
+  }
+  const total = t - start;
+  let bt = start;
+  while (bt < t) {
+    for (const [n, d] of BASS_LINE) {
+      const dur = d * sx; if (bt + dur > t) break;
+      if (F[n]) playTone(F[n], bt, dur * 0.95, "triangle", 0.06);
+      bt += dur;
+    }
+  }
+  let dt = start;
+  while (dt < t) {
+    for (let i = 0; i < 16; i++) {
+      const tt = dt + i * sx; if (tt >= t) break;
+      if (i === 0 || i === 8) playKick(tt);
+      if (i === 4 || i === 12) playSnare(tt);
+    }
+    dt += 16 * sx;
+  }
+  musicTimers.push(setTimeout(scheduleLoop, total * 1000 - 50));
+}
+function stopMusic() { musicTimers.forEach(t => clearTimeout(t)); musicTimers = []; musicPlaying = false; }
+function toggleMusic() {
+  initAudio(); musicEnabled = !musicEnabled;
+  document.getElementById("btn-music").textContent = musicEnabled ? "🔊" : "🔇";
+  if (musicEnabled && gameRunning) startMusic(); else stopMusic();
+}
+function sfxBlip(freq, dur, type="square", vol=0.06) {
+  if (!audioCtx || !musicEnabled) return;
+  const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+  osc.type = type; osc.frequency.value = freq;
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  const t = audioCtx.currentTime;
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  osc.start(t); osc.stop(t + dur);
+}
+
+// ============== PLAYER (game state per player) ==============
+class Player {
+  constructor(id, canvasId, nextId) {
+    this.id = id;
+    this.canvas = document.getElementById(canvasId);
+    this.ctx = this.canvas.getContext("2d");
+    this.nextCanvas = document.getElementById(nextId);
+    this.nextCtx = this.nextCanvas.getContext("2d");
+    this.cell = 24;
+    this.consumables = {}; // { bomb: 3, freeze: 2 }
+    this.frozenUntil = 0;
+  }
+  resize() {
+    const isMobile = window.innerWidth <= 600;
+    const isVersus = mode === "versus";
+    let availH = window.innerHeight - (isMobile ? 280 : 220);
+    let availW;
+    if (isVersus) availW = (window.innerWidth - 80) / 2;
+    else availW = window.innerWidth - 40;
+    const cellH = Math.floor(availH / ROWS);
+    const cellW = Math.floor(availW / COLS);
+    this.cell = Math.max(14, Math.min(cellH, cellW, 32));
+    this.canvas.width = this.cell * COLS;
+    this.canvas.height = this.cell * ROWS;
+  }
+  reset() {
+    this.grid = Array.from({length: ROWS}, () => Array(COLS).fill(null));
+    this.score = 0; this.coins = 0; this.level = 1; this.lines = 0;
+    this.gameOver = false;
+    this.dropInterval = 800;
+    this.accumulator = 0;
+    this.queue = [this.makePiece(), this.makePiece(), this.makePiece()];
+    this.current = this.queue.shift();
+    this.queue.push(this.makePiece());
+    this.consumables = {};
+    this.frozenUntil = 0;
+    this.shieldUsed = false;
+    // Grant initial consumables from purchases
+    for (const k in ITEMS) {
+      if (ITEMS[k].type === "consumable" && save.owned[k]) {
+        this.consumables[k] = ITEMS[k].stock;
+      }
+    }
+    this.updateUI();
+    this.draw();
+  }
+  makePiece() {
+    const keys = Object.keys(SHAPES);
+    const k = keys[Math.floor(Math.random() * keys.length)];
+    return {
+      type: k,
+      shape: SHAPES[k].map(r => r.slice()),
+      x: Math.floor((COLS - SHAPES[k][0].length) / 2),
+      y: 0,
+    };
+  }
+  collides(piece, dx=0, dy=0, shape=null) {
+    const s = shape || piece.shape;
+    for (let r = 0; r < s.length; r++)
+      for (let c = 0; c < s[r].length; c++)
+        if (s[r][c]) {
+          const nx = piece.x + c + dx, ny = piece.y + r + dy;
+          if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+          if (ny >= 0 && this.grid[ny][nx]) return true;
+        }
+    return false;
+  }
+  merge() {
+    this.current.shape.forEach((row, r) => row.forEach((v, c) => {
+      if (v) {
+        const ny = this.current.y + r, nx = this.current.x + c;
+        if (ny >= 0) this.grid[ny][nx] = this.current.type;
+      }
+    }));
+  }
+  clearLines() {
+    let cleared = 0;
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (this.grid[r].every(c => c !== null)) {
+        this.grid.splice(r, 1);
+        this.grid.unshift(Array(COLS).fill(null));
+        cleared++; r++;
+      }
+    }
+    if (cleared > 0) {
+      const points = [0, 100, 300, 500, 800][cleared] * this.level;
+      this.score += points;
+      this.lines += cleared;
+      let coinGain = cleared * 10 + (cleared === 4 ? 60 : 0);
+      if (save.owned.doubleCoin) coinGain *= 2;
+      this.coins += coinGain;
+      const newLevel = Math.floor(this.lines / 10) + 1;
+      if (newLevel > this.level) {
+        this.level = newLevel;
+        this.dropInterval = Math.max(80, 800 - (this.level - 1) * 60);
+        this.coins += 50 * (save.owned.doubleCoin ? 2 : 1);
+        sfxBlip(880, 0.15, "square", 0.08);
+      }
+      if (cleared === 4) {
+        [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => sfxBlip(f, 0.15, "square", 0.08), i * 60));
+      } else sfxBlip(660, 0.1, "square", 0.07);
+      this.updateUI();
+    }
+  }
+  spawn() {
+    this.current = this.queue.shift();
+    this.queue.push(this.makePiece());
+    this.drawNext();
+    if (this.collides(this.current)) {
+      // Use shield if available
+      if (save.owned.shield && !this.shieldUsed) {
+        this.shieldUsed = true;
+        // Clear top 4 rows
+        for (let r = 0; r < 4; r++) this.grid[r] = Array(COLS).fill(null);
+        sfxBlip(1200, 0.3, "square", 0.1);
+        return;
+      }
+      this.endGame();
+    }
+  }
+  tick(dt) {
+    if (this.gameOver) return;
+    if (Date.now() < this.frozenUntil) return;
+    this.accumulator += dt;
+    while (this.accumulator >= this.dropInterval) {
+      if (!this.collides(this.current, 0, 1)) this.current.y++;
+      else { this.merge(); this.clearLines(); this.spawn(); }
+      this.accumulator -= this.dropInterval;
+    }
+    this.draw();
+  }
+  move(dx) {
+    if (this.gameOver || Date.now() < this.frozenUntil) return;
+    if (!this.collides(this.current, dx, 0)) {
+      this.current.x += dx; sfxBlip(330, 0.03, "square", 0.04); this.draw();
+    }
+  }
+  rotate() {
+    if (this.gameOver || Date.now() < this.frozenUntil) return;
+    const s = this.current.shape;
+    const rows = s.length, cols = s[0].length;
+    const out = Array.from({length: cols}, () => Array(rows).fill(0));
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) out[c][rows-1-r] = s[r][c];
+    for (const k of [0, -1, 1, -2, 2]) {
+      if (!this.collides(this.current, k, 0, out)) {
+        this.current.shape = out; this.current.x += k;
+        sfxBlip(550, 0.04, "square", 0.05); this.draw(); return;
+      }
+    }
+  }
+  hardDrop() {
+    if (this.gameOver || Date.now() < this.frozenUntil) return;
+    let d = 0;
+    while (!this.collides(this.current, 0, d + 1)) d++;
+    this.current.y += d;
+    this.score += d * 2;
+    this.merge(); this.clearLines(); this.spawn();
+    sfxBlip(180, 0.12, "sawtooth", 0.08);
+    this.updateUI(); this.draw();
+  }
+  softDrop() {
+    if (this.gameOver || Date.now() < this.frozenUntil) return;
+    if (!this.collides(this.current, 0, 1)) {
+      this.current.y++; this.score += 1; this.updateUI(); this.draw();
+    }
+  }
+  // ITEM ACTIONS
+  useItem(itemKey) {
+    if (this.gameOver) return;
+    if (!this.consumables[itemKey] || this.consumables[itemKey] <= 0) return;
+    if (itemKey === "bomb") {
+      // Clear bottom non-empty row
+      for (let r = ROWS - 1; r >= 0; r--) {
+        if (this.grid[r].some(c => c !== null)) {
+          this.grid.splice(r, 1);
+          this.grid.unshift(Array(COLS).fill(null));
+          break;
+        }
+      }
+      sfxBlip(80, 0.4, "sawtooth", 0.12);
+    } else if (itemKey === "swap") {
+      this.current = this.queue.shift();
+      this.queue.push(this.makePiece());
+      this.drawNext();
+      sfxBlip(440, 0.1, "square", 0.06);
+    } else if (itemKey === "freeze" && mode === "versus") {
+      const opp = this === p1 ? p2 : p1;
+      opp.frozenUntil = Date.now() + 4000;
+      sfxBlip(200, 0.5, "sine", 0.1);
+    } else if (itemKey === "attack" && mode === "versus") {
+      const opp = this === p1 ? p2 : p1;
+      opp.addGarbage(2);
+      sfxBlip(120, 0.3, "sawtooth", 0.12);
+    }
+    this.consumables[itemKey]--;
+    this.updateUI();
+    this.draw();
+  }
+  addGarbage(rows) {
+    const hole = Math.floor(Math.random() * COLS);
+    for (let i = 0; i < rows; i++) {
+      this.grid.shift();
+      const row = Array(COLS).fill("G");
+      row[hole] = null;
+      this.grid.push(row);
+    }
+    if (this.collides(this.current)) this.current.y -= rows;
+    this.draw();
+  }
+  endGame() {
+    this.gameOver = true;
+    sfxBlip(300, 0.4, "sawtooth", 0.1);
+    setTimeout(() => sfxBlip(200, 0.4, "sawtooth", 0.1), 200);
+    setTimeout(() => sfxBlip(100, 0.6, "sawtooth", 0.1), 400);
+    onPlayerEnd(this);
+  }
+  updateUI() {
+    document.getElementById(`p${this.id}-score`).textContent = this.score;
+    document.getElementById(`p${this.id}-coins`).textContent = this.coins;
+    document.getElementById(`p${this.id}-level`).textContent = this.level;
+    this.renderItems();
+  }
+  renderItems() {
+    const bar = document.getElementById(`items${this.id}`);
+    bar.innerHTML = "";
+    for (const k in this.consumables) {
+      const count = this.consumables[k];
+      if (count <= 0) continue;
+      const item = ITEMS[k];
+      const slot = document.createElement("div");
+      slot.className = "item-slot";
+      slot.innerHTML = `${item.icon}<span class="count">${count}</span>`;
+      slot.title = item.name;
+      slot.onclick = () => this.useItem(k);
+      bar.appendChild(slot);
+    }
+  }
+  draw() {
+    const ctx = this.ctx, CELL = this.cell;
+    ctx.fillStyle = "rgba(10,4,32,0.95)";
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.strokeStyle = "rgba(255,255,255,0.04)";
+    for (let i = 0; i <= COLS; i++) {
+      ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, ROWS * CELL); ctx.stroke();
+    }
+    for (let i = 0; i <= ROWS; i++) {
+      ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(COLS * CELL, i * CELL); ctx.stroke();
+    }
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        if (this.grid[r][c]) this.drawCell(c, r, COLORS[this.grid[r][c]]);
+    if (this.current && !this.gameOver) {
+      let gd = 0;
+      while (!this.collides(this.current, 0, gd + 1)) gd++;
+      const ghostAlpha = save.owned.ghost ? "60" : "30";
+      this.current.shape.forEach((row, r) => row.forEach((v, c) => {
+        if (v) {
+          const x = this.current.x + c, y = this.current.y + r + gd;
+          ctx.fillStyle = COLORS[this.current.type] + ghostAlpha;
+          ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
+        }
+      }));
+      this.current.shape.forEach((row, r) => row.forEach((v, c) => {
+        if (v) this.drawCell(this.current.x + c, this.current.y + r, COLORS[this.current.type]);
+      }));
+    }
+    // Frozen overlay
+    if (Date.now() < this.frozenUntil) {
+      ctx.fillStyle = "rgba(100,200,255,0.3)";
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.fillStyle = "#fff";
+      ctx.font = `bold ${CELL}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText("❄️ FROZEN", this.canvas.width/2, this.canvas.height/2);
+    }
+  }
+  drawCell(x, y, color) {
+    if (y < 0) return;
+    const ctx = this.ctx, CELL = this.cell;
+    const px = x * CELL, py = y * CELL;
+    ctx.fillStyle = color;
+    ctx.fillRect(px + 1, py + 1, CELL - 2, CELL - 2);
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.fillRect(px + 1, py + 1, CELL - 2, 2);
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fillRect(px + 1, py + CELL - 3, CELL - 2, 2);
+  }
+  drawNext() {
+    const ctx = this.nextCtx;
+    const W = this.nextCanvas.width, H = this.nextCanvas.height;
+    ctx.clearRect(0, 0, W, H);
+    const showCount = save.owned.vision ? 3 : 1;
+    const cell = save.owned.vision ? 8 : 12;
+    const pieces = [this.current ? this.queue[0] : this.queue[0]];
+    // Show queue pieces
+    const list = save.owned.vision ? this.queue.slice(0, 3) : [this.queue[0]];
+    let yOff = 4;
+    list.forEach(p => {
+      if (!p) return;
+      const s = p.shape;
+      const ox = (W - s[0].length * cell) / 2;
+      s.forEach((row, r) => row.forEach((v, c) => {
+        if (v) {
+          ctx.fillStyle = COLORS[p.type];
+          ctx.fillRect(ox + c * cell + 1, yOff + r * cell + 1, cell - 2, cell - 2);
+        }
+      }));
+      yOff += s.length * cell + 4;
+    });
+  }
+}
+
+// ============== GAME LOOP ==============
+let p1, p2, mode = "solo", paused = false, gameRunning = false, lastTime = 0;
+
+function gameLoop(t) {
+  if (!lastTime) lastTime = t;
+  const dt = t - lastTime;
+  lastTime = t;
+  if (gameRunning && !paused) {
+    if (p1) p1.tick(dt);
+    if (p2 && mode === "versus") p2.tick(dt);
+  }
+  requestAnimationFrame(gameLoop);
+}
+requestAnimationFrame(gameLoop);
+
+function onPlayerEnd(player) {
+  if (mode === "solo") {
+    gameRunning = false;
+    stopMusic();
+    save.coins += player.coins;
+    if (player.score > save.high) save.high = player.score;
+    persist();
+    showOverlay(player, "GAME OVER", `分数 ${player.score} · 获得 💰${player.coins}`);
+  } else {
+    // versus: first to die loses
+    gameRunning = false;
+    stopMusic();
+    const winner = player === p1 ? p2 : p1;
+    const reward = Math.floor((winner.coins + 50));
+    save.coins += reward;
+    persist();
+    showOverlay(p1, p1.gameOver ? "你输了" : "🏆 胜利!", "");
+    showOverlay(p2, p2.gameOver ? "你输了" : "🏆 胜利!", "");
+    setTimeout(() => {
+      alert(`P${winner.id} 胜利!\n双方获得金币:P1 +${p1.coins} · P2 +${p2.coins}\n胜者奖励 +50`);
+      showScreen("menu");
+    }, 800);
+  }
+}
+
+function showOverlay(player, title, text) {
+  const o = document.getElementById(`overlay${player.id}`);
+  document.getElementById(`overlay${player.id}-title`).textContent = title;
+  document.getElementById(`overlay${player.id}-text`).textContent = text;
+  o.classList.remove("hidden");
+}
+function hideOverlays() {
+  document.getElementById("overlay1").classList.add("hidden");
+  document.getElementById("overlay2").classList.add("hidden");
+}
+
+function startGame(m) {
+  mode = m;
+  hideOverlays();
+  document.getElementById("game-title").textContent = m === "solo" ? "SOLO" : "VS BATTLE";
+  document.getElementById("p2-side").style.display = m === "versus" ? "flex" : "none";
+  document.getElementById("vs-divider").style.display = m === "versus" ? "flex" : "none";
+  document.getElementById("p2-controls").style.display = m === "versus" ? "grid" : "none";
+  if (!p1) p1 = new Player(1, "board1", "next1");
+  if (!p2) p2 = new Player(2, "board2", "next2");
+  p1.resize(); p2.resize();
+  p1.reset();
+  if (m === "versus") p2.reset();
+  paused = false;
+  gameRunning = true;
+  initAudio();
+  if (musicEnabled) startMusic();
+  lastTime = 0;
+}
+
+function endGame() {
+  gameRunning = false;
+  stopMusic();
+  if (p1 && !p1.gameOver) save.coins += p1.coins;
+  if (p2 && !p2.gameOver && mode === "versus") save.coins += p2.coins;
+  persist();
+}
+
+function togglePause() {
+  if (!gameRunning) return;
+  paused = !paused;
+  document.getElementById("btn-pause").textContent = paused ? "▶" : "⏸";
+  if (paused) stopMusic();
+  else if (musicEnabled) startMusic();
+}
+
+// ============== INPUT ==============
+document.addEventListener("keydown", e => {
+  if (!gameRunning) return;
+  // P1: WASD + Q + E
+  if (e.key === "a" || e.key === "A") { p1.move(-1); e.preventDefault(); }
+  else if (e.key === "d" || e.key === "D") { p1.move(1); e.preventDefault(); }
+  else if (e.key === "s" || e.key === "S") { p1.softDrop(); e.preventDefault(); }
+  else if (e.key === "w" || e.key === "W") { p1.rotate(); e.preventDefault(); }
+  else if (e.key === "q" || e.key === "Q") { p1.hardDrop(); e.preventDefault(); }
+  // P2: arrows + Enter + Shift
+  if (mode === "versus") {
+    if (e.key === "ArrowLeft") { p2.move(-1); e.preventDefault(); }
+    else if (e.key === "ArrowRight") { p2.move(1); e.preventDefault(); }
+    else if (e.key === "ArrowDown") { p2.softDrop(); e.preventDefault(); }
+    else if (e.key === "ArrowUp") { p2.rotate(); e.preventDefault(); }
+    else if (e.key === "Enter" || e.key === " ") { p2.hardDrop(); e.preventDefault(); }
+  } else {
+    // Solo: also accept arrows
+    if (e.key === "ArrowLeft") { p1.move(-1); e.preventDefault(); }
+    else if (e.key === "ArrowRight") { p1.move(1); e.preventDefault(); }
+    else if (e.key === "ArrowDown") { p1.softDrop(); e.preventDefault(); }
+    else if (e.key === "ArrowUp") { p1.rotate(); e.preventDefault(); }
+    else if (e.key === " ") { p1.hardDrop(); e.preventDefault(); }
+  }
+  if (e.key === "p" || e.key === "P") togglePause();
+  if (e.key === "m" || e.key === "M") toggleMusic();
+});
+
+// Touch buttons
+document.querySelectorAll(".ctrl-btn[data-act]").forEach(btn => {
+  const p = +btn.dataset.p, act = btn.dataset.act;
+  let interval;
+  const fire = () => {
+    const player = p === 1 ? p1 : p2;
+    if (!player) return;
+    if (act === "left") player.move(-1);
+    else if (act === "right") player.move(1);
+    else if (act === "rotate") player.rotate();
+    else if (act === "drop") player.hardDrop();
+  };
+  const press = (e) => {
+    e.preventDefault();
+    fire();
+    if (act === "left" || act === "right") interval = setInterval(fire, 100);
+  };
+  const release = () => { if (interval) { clearInterval(interval); interval = null; } };
+  btn.addEventListener("touchstart", press, {passive:false});
+  btn.addEventListener("touchend", release);
+  btn.addEventListener("touchcancel", release);
+  btn.addEventListener("mousedown", press);
+  btn.addEventListener("mouseup", release);
+  btn.addEventListener("mouseleave", release);
+});
+
+// ============== SCREEN MANAGEMENT ==============
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  if (id === "menu") {
+    document.getElementById("menu-coins").textContent = save.coins;
+    endGame();
+  } else if (id === "shop") {
+    renderShop();
+  }
+}
+
+function renderShop() {
+  document.getElementById("shop-coins").textContent = save.coins;
+  const grid = document.getElementById("shop-grid");
+  grid.innerHTML = "";
+  for (const key in ITEMS) {
+    const item = ITEMS[key];
+    const owned = !!save.owned[key];
+    const canAfford = save.coins >= item.price;
+    const div = document.createElement("div");
+    div.className = "shop-item";
+    if (owned && item.type === "permanent") div.classList.add("owned");
+    else if (!canAfford) div.classList.add("cant-afford");
+    const status = item.type === "permanent"
+      ? (owned ? "✅ 已拥有" : `💰 ${item.price}`)
+      : `💰 ${item.price} <small>(每局给 ${item.stock} 个)</small>`;
+    div.innerHTML = `
+      <div class="item-icon">${item.icon}</div>
+      <div class="item-name">${item.name}</div>
+      <div class="item-desc">${item.desc}</div>
+      <div class="item-price">${status}</div>
+    `;
+    div.onclick = () => buyItem(key);
+    grid.appendChild(div);
+  }
+}
+
+function buyItem(key) {
+  const item = ITEMS[key];
+  if (item.type === "permanent" && save.owned[key]) return;
+  if (save.coins < item.price) {
+    sfxBlip(200, 0.2, "sawtooth", 0.08);
+    return;
+  }
+  save.coins -= item.price;
+  save.owned[key] = true;
+  persist();
+  sfxBlip(880, 0.15, "square", 0.08);
+  setTimeout(() => sfxBlip(1200, 0.15, "square", 0.08), 80);
+  renderShop();
+}
+
+function resetSave() {
+  if (!confirm("重置所有金币和装备?")) return;
+  save = { coins: 0, owned: {}, high: 0 };
+  persist();
+  document.getElementById("menu-coins").textContent = 0;
+}
+
+// Init
+document.getElementById("menu-coins").textContent = save.coins;
+window.addEventListener("resize", () => {
+  if (p1) p1.resize();
+  if (p2) p2.resize();
+  if (p1 && p1.draw) p1.draw();
+  if (p2 && p2.draw && mode === "versus") p2.draw();
+});
+
+// Click anywhere on game screen initializes audio (autoplay policy)
+document.getElementById("game").addEventListener("click", () => initAudio(), { once: true });
+</script>
+</body>
+</html>
